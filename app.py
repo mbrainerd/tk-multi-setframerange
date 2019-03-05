@@ -59,15 +59,18 @@ class SetFrameRange(Application):
         Callback from when the menu is clicked.
         """
 
-        (new_in, new_out) = self.get_frame_range_from_shotgun()
-        (current_in, current_out) = self.get_current_frame_range(self.engine.name)
+        if self.get_setting("use_default_value"):
+            (new_in, new_out) = self.get_default_frame_range()
+        else:
+            (new_in, new_out) = self.get_frame_range_from_shotgun()
 
-        if new_in is None or new_out is None:
-            message =  "Shotgun has not yet been populated with \n"
-            message += "in and out frame data for this Shot."
-            QtGui.QMessageBox.information(None, "No data in Shotgun!", message)
-            return
-            
+            if new_in is None or new_out is None:
+                message =  "Shotgun has not yet been populated with \n"
+                message += "in and out frame data for this Shot."
+                QtGui.QMessageBox.information(None, "No data in Shotgun!", message)
+                return
+
+        (current_in, current_out) = self.get_current_frame_range(self.engine.name)
         # now update the frame range.
         # because the frame range is often set in multiple places (e.g render range,
         # current range, anim range etc), we go ahead an update every time, even if
@@ -147,6 +150,18 @@ class SetFrameRange(Application):
                                        out_frame=out_frame)     
         except tank.TankError, e:
             # deliberately filter out exception that used to be thrown 
+            # from the scene operation hook but has since been removed
+            if not str(e).startswith("Not supported frame operation '"):
+                # just re-raise the exception:
+                raise
+        return result
+
+    def get_default_frame_range(self):
+        try:
+            result = self.execute_hook("hook_frame_operation",
+                                       operation="default_frame_range")
+        except tank.TankError, e:
+            # deliberately filter out exception that used to be thrown
             # from the scene operation hook but has since been removed
             if not str(e).startswith("Not supported frame operation '"):
                 # just re-raise the exception:

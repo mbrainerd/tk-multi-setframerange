@@ -59,3 +59,6 @@ class FrameOperation(HookBaseClass):
             defaultRenderGlobals.startFrame.set(in_frame)
             defaultRenderGlobals.endFrame.set(out_frame)
             return True
+        elif operation == "default_frame_range":
+            default_in = self.get_setting("default_sg_in_frame_value")
+            default_out = self.get_setting("default_sg_out_frame_value")
