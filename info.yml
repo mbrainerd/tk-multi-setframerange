@@ -34,6 +34,17 @@ configuration:
         default_value: "{self}/frame_operations_{engine_name}.py"
         description: Hook which contains all methods for setting/getting frame ranges.
 
+    default_sg_frame_values:
+        type: dict
+        allows_empty: True
+        values:
+              type: int
+
+    use_default_values:
+        type: bool
+        default_value: False
+        description: Use default values instead of erroring out.
+
 # the Shotgun fields that this app needs in order to operate correctly
 requires_shotgun_fields:
 
