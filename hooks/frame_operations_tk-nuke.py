@@ -42,7 +42,7 @@ class FrameOperation(HookBaseClass):
                     'get_frame_range' - Returns the frame range in the form (in_frame, out_frame)
         """
 
-        engine = tank.platform.current_engine()
+        engine = sgtk.platform.current_engine()
         if engine.hiero_enabled:
             raise TankError("Not supported frame operation for hiero")
 
