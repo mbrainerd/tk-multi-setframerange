@@ -59,16 +59,20 @@ class SetFrameRange(Application):
         Callback from when the menu is clicked.
         """
 
-        if self.get_setting("use_default_value"):
-            (new_in, new_out) = self.get_default_frame_range()
+        if self.context.entity["type"] == "Asset":
+            if self.get_setting("use_default_values"):
+                (new_in, new_out) = self.get_default_frame_range()
+                msg = "default frame ranges"
+            else:
+                return
         else:
             (new_in, new_out) = self.get_frame_range_from_shotgun()
-
             if new_in is None or new_out is None:
                 message =  "Shotgun has not yet been populated with \n"
                 message += "in and out frame data for this Shot."
                 QtGui.QMessageBox.information(None, "No data in Shotgun!", message)
                 return
+            msg = "latest frame ranges from shotgun"
 
         (current_in, current_out) = self.get_current_frame_range(self.engine.name)
         # now update the frame range.
@@ -79,7 +83,7 @@ class SetFrameRange(Application):
         
         if updated:
             message =  "Your scene has been updated with the \n"
-            message += "latest frame ranges from shotgun.\n\n"
+            message += "{}.\n\n".format(msg)
             message += "Previous start frame: %s\n" % current_in
             message += "New start frame: %s\n\n" % new_in
             message += "Previous end frame: %s\n" % current_out
@@ -157,13 +161,6 @@ class SetFrameRange(Application):
         return result
 
     def get_default_frame_range(self):
-        try:
-            result = self.execute_hook("hook_frame_operation",
-                                       operation="default_frame_range")
-        except tank.TankError, e:
-            # deliberately filter out exception that used to be thrown
-            # from the scene operation hook but has since been removed
-            if not str(e).startswith("Not supported frame operation '"):
-                # just re-raise the exception:
-                raise
-        return result
+        default_in = self.get_setting("default_sg_in_frame_value")
+        default_out = self.get_setting("default_sg_out_frame_value")
+        return (default_in, default_out)
