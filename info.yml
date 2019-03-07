@@ -36,12 +36,10 @@ configuration:
 
     default_sg_in_frame_value:
         type: int
-        default_value: 1001
         description: Value to be used if sg_in_frame_field has no value assigned, or if the field doesn't exist.
 
     default_sg_out_frame_value:
         type: int
-        default_value: 1100
         description: Value to be used if sg_out_frame_field has no value assigned, or if the field doesn't exist.
 
     use_default_values:
