@@ -59,14 +59,17 @@ class SetFrameRange(Application):
         Callback from when the menu is clicked.
         """
 
-        if self.context.entity["type"] == "Asset":
+        (status, new_in, new_out) = self.get_frame_range_from_shotgun()
+        if status is False:
             if self.get_setting("use_default_values"):
                 (new_in, new_out) = self.get_default_frame_range()
                 msg = "default frame ranges"
             else:
+                message = "No frame data available for this Entity.\n"
+                message += "Not updating frame range."
+                QtGui.QMessageBox.information(None, "No frame data available!", message)
                 return
         else:
-            (new_in, new_out) = self.get_frame_range_from_shotgun()
             if new_in is None or new_out is None:
                 message =  "Shotgun has not yet been populated with \n"
                 message += "in and out frame data for this Shot."
@@ -117,18 +120,10 @@ class SetFrameRange(Application):
 
         data = self.shotgun.find_one(sg_entity_type, filters=sg_filters, fields=fields)
 
-        # check if fields exist!
-        if sg_in_field not in data:
-            raise tank.TankError("Configuration error: Your current context is connected to a Shotgun "
-                                 "%s. This entity type does not have a "
-                                 "field %s.%s!" % (sg_entity_type, sg_entity_type, sg_in_field))
+        if sg_in_field not in data or sg_out_field not in data:
+            return (False, False, False)
 
-        if sg_out_field not in data:
-            raise tank.TankError("Configuration error: Your current context is connected to a Shotgun "
-                                 "%s. This entity type does not have a "
-                                 "field %s.%s!" % (sg_entity_type, sg_entity_type, sg_out_field))
-
-        return ( data[sg_in_field], data[sg_out_field] )
+        return (True,  data[sg_in_field], data[sg_out_field] )
 
     def get_current_frame_range(self, engine):
         try:
