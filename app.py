@@ -27,6 +27,9 @@ class SetFrameRange(Application):
     class FrameOperationNotSupported(Exception):
         pass
 
+    class NoDefaultRangeDefined(Exception):
+        pass
+
     def init_app(self):
         """
         App entry point
@@ -59,43 +62,46 @@ class SetFrameRange(Application):
         Callback from when the menu is clicked.
         """
 
-        (status, new_in, new_out) = self.get_frame_range_from_shotgun()
-        if status is False:
-            if self.get_setting("use_default_values"):
-                (new_in, new_out) = self.get_default_frame_range()
-                msg = "default frame ranges"
-            else:
-                message = "No frame data available for this Entity.\n"
-                message += "Not updating frame range."
-                QtGui.QMessageBox.information(None, "No frame data available!", message)
-                return
+        message = ""
+        try:
+            try:
+                new_in, new_out = self.get_frame_range_from_shotgun()
+                if new_in is None or new_out is None:
+                    message = "Shotgun has not yet been populated with \n"
+                    message += "in and out frame data for this Shot."
+                    QtGui.QMessageBox.information(None, "No data in Shotgun!", message)
+                    return
+                msg = "latest frame range from shotgun"
+            except self.FrameOperationNotSupported as e:
+                if not self.get_setting("use_default_values"):
+                    raise e
+                else:
+                    message += "{0} and ".format(str(e))
+                    new_in, new_out = self.get_default_frame_range()
+                    msg = "default frame range"
+        except (self.FrameOperationNotSupported, self.NoDefaultRangeDefined) as e:
+            message += "{0} {1}".format(str(e), "\nNot Updating frame range.")
+            QtGui.QMessageBox.information(None, str(e.__class__.__name__), message)
         else:
-            if new_in is None or new_out is None:
-                message =  "Shotgun has not yet been populated with \n"
-                message += "in and out frame data for this Shot."
-                QtGui.QMessageBox.information(None, "No data in Shotgun!", message)
-                return
-            msg = "latest frame ranges from shotgun"
+            current_in, current_out = self.get_current_frame_range()
+            # now update the frame range.
+            # because the frame range is often set in multiple places (e.g render range,
+            # current range, anim range etc), we go ahead an update every time, even if
+            # the values in Shotgun are the same as the values reported via get_current_frame_range()
+            updated = self.set_frame_range(new_in, new_out)
 
-        (current_in, current_out) = self.get_current_frame_range(self.engine.name)
-        # now update the frame range.
-        # because the frame range is often set in multiple places (e.g render range,
-        # current range, anim range etc), we go ahead an update every time, even if
-        # the values in Shotgun are the same as the values reported via get_current_frame_range()
-        updated = self.set_frame_range(self.engine.name, new_in, new_out)
-        
-        if updated:
-            message =  "Your scene has been updated with the \n"
-            message += "{}.\n\n".format(msg)
-            message += "Previous start frame: %s\n" % current_in
-            message += "New start frame: %s\n\n" % new_in
-            message += "Previous end frame: %s\n" % current_out
-            message += "New end frame: %s\n\n" % new_out
-            
-            QtGui.QMessageBox.information(None, "Frame range updated!", message)
-        else:
-            message =  "There was a problem updating your scene frame range.\n"
-            QtGui.QMessageBox.warning(None, "Frame range not updated!", message)
+            if updated:
+                message =  "Your scene has been updated with the \n"
+                message += "{}.\n\n".format(msg)
+                message += "Previous start frame: %s\n" % current_in
+                message += "New start frame: %s\n\n" % new_in
+                message += "Previous end frame: %s\n" % current_out
+                message += "New end frame: %s\n\n" % new_out
+
+                QtGui.QMessageBox.information(None, "Frame range updated!", message)
+            else:
+                message =  "There was a problem updating your scene frame range.\n"
+                QtGui.QMessageBox.warning(None, "Frame range not updated!", message)
 
 
 
@@ -120,42 +126,51 @@ class SetFrameRange(Application):
 
         data = self.shotgun.find_one(sg_entity_type, filters=sg_filters, fields=fields)
 
-        if sg_in_field not in data or sg_out_field not in data:
-            return (False, False, False)
+        if sg_in_field not in data:
+            raise self.FrameOperationNotSupported("Configuration error: Your current context is connected to a Shotgun "
+                                                  "%s. This entity type does not have a field %s.%s"
+                                                  % (sg_entity_type, sg_entity_type, sg_in_field))
 
-        return (True,  data[sg_in_field], data[sg_out_field] )
+        if sg_out_field not in data:
+            raise self.FrameOperationNotSupported("Configuration error: Your current context is connected to a Shotgun "
+                                                  "%s. This entity type does not have a field %s.%s"
+                                                  % (sg_entity_type, sg_entity_type, sg_out_field))
 
-    def get_current_frame_range(self, engine):
+        return data[sg_in_field], data[sg_out_field]
+
+    def get_current_frame_range(self):
         try:
             result = self.execute_hook("hook_frame_operation",
-                                       operation="get_frame_range")     
-        except tank.TankError, e:
-            # deliberately filter out exception that used to be thrown 
-            # from the scene operation hook but has since been removed
-            if not str(e).startswith("Not supported frame operation '"):
-                # just re-raise the exception:
-                raise
+                                       operation="get_frame_range")
+        except self.FrameOperationNotSupported as e:
+            self.log_debug(str(e))
+        except:
+            raise
 
         if not isinstance(result, tuple) or (isinstance(result, tuple) and len(result) != 2):
-            raise tank.TankError("Unexpected type returned from 'hook_frame_operation' for operation get_frame_range - expected a 'tuple' with (in_frame, out_frame) values but returned '%s' : %s" 
-                            % (type(result).__name__), result)
+            raise TypeError("Unexpected type returned from 'hook_frame_operation' for operation get_frame_range."
+                            "Expected a 'tuple' with (in_frame, out_frame) values but returned '%s' : %s"
+                            % type(result).__name__, result)
         return result 
 
-    def set_frame_range(self, engine, in_frame, out_frame):
+    def set_frame_range(self, in_frame, out_frame):
         try:
             result = self.execute_hook("hook_frame_operation",
                                        operation="set_frame_range",
                                        in_frame=in_frame,
-                                       out_frame=out_frame)     
-        except tank.TankError, e:
-            # deliberately filter out exception that used to be thrown 
-            # from the scene operation hook but has since been removed
-            if not str(e).startswith("Not supported frame operation '"):
-                # just re-raise the exception:
-                raise
+                                       out_frame=out_frame)
+        except self.FrameOperationNotSupported as e:
+            self.log_debug(str(e))
+        except:
+            raise
+
         return result
 
     def get_default_frame_range(self):
-        default_in = self.get_setting("default_sg_in_frame_value")
-        default_out = self.get_setting("default_sg_out_frame_value")
-        return (default_in, default_out)
+        try:
+            default_values = self.get_setting("default_sg_frame_values")
+            default_in = default_values['default_sg_in_frame_value']
+            default_out = default_values["default_sg_out_frame_value"]
+        except KeyError as e:
+            raise self.NoDefaultRangeDefined("{}".format(e))
+        return default_in, default_out
