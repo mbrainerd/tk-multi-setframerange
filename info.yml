@@ -34,13 +34,11 @@ configuration:
         default_value: "{self}/frame_operations_{engine_name}.py"
         description: Hook which contains all methods for setting/getting frame ranges.
 
-    default_sg_in_frame_value:
-        type: int
-        description: Value to be used if sg_in_frame_field has no value assigned, or if the field doesn't exist.
-
-    default_sg_out_frame_value:
-        type: int
-        description: Value to be used if sg_out_frame_field has no value assigned, or if the field doesn't exist.
+    default_sg_frame_values:
+        type: dict
+        allows_empty: True
+        values:
+              type: int
 
     use_default_values:
         type: bool
