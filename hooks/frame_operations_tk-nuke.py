@@ -44,7 +44,7 @@ class FrameOperation(HookBaseClass):
 
         engine = sgtk.platform.current_engine()
         if engine.hiero_enabled:
-            raise TankError("Not supported frame operation for hiero")
+            raise self.FrameOperationNotSupported("Not supported frame operation for hiero")
 
         if operation == "get_frame_range":
             current_in = int(nuke.root()["first_frame"].value())
